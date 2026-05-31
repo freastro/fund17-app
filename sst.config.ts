@@ -12,4 +12,14 @@ export default $config({
   async run() {
     new sst.aws.TanStackStart("web");
   },
+  console: {
+    autodeploy: {
+      target(event) {
+        // Force 'main' branch to deploy to 'production' stage
+        if (event.type === "branch" && event.branch === "main") {
+          return { stage: "production" };
+        }
+      }
+    }
+  }
 });
