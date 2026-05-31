@@ -1,0 +1,28 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+
+# production
+/dist
+/dist-ssr
+
+# tanstack
+/.nitro
+/.tanstack
+/.output
+
+# misc
+.DS_Store
+
+# local env files
+*.local
+.env
+
+# jetbrains
+/.idea
+*.iml
+http-client.private.env.json
+
+# vscode
+/.vscode
