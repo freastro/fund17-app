@@ -26,3 +26,6 @@ http-client.private.env.json
 
 # vscode
 /.vscode
+
+# sst
+.sst
