@@ -15,13 +15,17 @@ export const Route = createRootRoute({
         content: 'width=device-width, initial-scale=1',
       },
       {
-        title: 'TanStack Start Starter',
+        title: 'Fund17 — Personal Finance Dashboard',
       },
     ],
     links: [
       {
         rel: 'stylesheet',
         href: appCss,
+      },
+      {
+        rel: 'stylesheet',
+        href: 'https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css',
       },
     ],
   }),

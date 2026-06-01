@@ -1,17 +1,118 @@
-
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Lato:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
 
-* {
-  box-sizing: border-box;
+/* ============================================================
+   FUND17 DESIGN SYSTEM — tokens registered with Tailwind v4.
+   Registering them in @theme makes each one a first-class
+   utility (bg-sage-100, text-ink-900, font-display, shadow-green,
+   rounded-2xl…). The dark shell below simply remaps the SAME
+   CSS variables, so every utility adapts with no `dark:` variants.
+   ============================================================ */
+
+@font-face {
+  font-family: 'Urbanist';
+  src: url('/fonts/Urbanist-VariableFont_wght.ttf') format('truetype-variations'),
+       url('/fonts/Urbanist-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
 }
 
-html,
-body,
-#app {
-  min-height: 100%;
+@theme {
+  /* ---------- BRAND ---------- */
+  --color-green-900: #1E4841;
+  --color-green-700: #2A5F55;
+  --color-green-600: #415C58;
+  --color-lime-400:  #BBF49C;
+  --color-lime-300:  #CDEDDD;
+  --color-mint-400:  #9BDABB;
+  --color-mint-200:  #E2F6EC;
+  --color-sage-100:  #ECF4E9;
+
+  /* ---------- NEUTRALS ---------- */
+  --color-ink-900:   #1A1615;
+  --color-ink-800:   #242E2C;
+  --color-ink-500:   #6B7271;
+  --color-ink-400:   #66615E;
+  --color-ink-300:   #BCBEBD;
+  --color-line:      #E5E6E6;
+  --color-line-soft: #E4E2DD;
+  --color-surface:   #FBFBFC;
+  --color-surface-2: #F7F8F8;
+  --color-white:     #FFFFFF;
+
+  /* ---------- SEMANTIC ---------- */
+  --color-success:    #1E4841;
+  --color-success-bg: #ECF4E9;
+  --color-danger:     #F73541;
+  --color-danger-bg:  #FFE1E3;
+  --color-warning:    #C98A1A;
+  --color-warning-bg: #FBF1DC;
+  --color-info:       #3384C6;
+  --color-info-bg:    #E8F5FF;
+
+  /* ---------- TYPOGRAPHY ---------- */
+  --font-display: 'Urbanist', system-ui, sans-serif;
+  --font-body:    'Lato', system-ui, sans-serif;
+  --font-mono:    'Inter', ui-monospace, monospace;
+
+  /* ---------- RADII ---------- */
+  --radius-xs: 6px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
+
+  /* ---------- SHADOWS ---------- */
+  --shadow-xs: 0 1px 2px rgba(26,22,21,0.05);
+  --shadow-sm: 0 2px 8px rgba(26,22,21,0.06);
+  --shadow-md: 0 8px 24px rgba(26,22,21,0.08);
+  --shadow-lg: 0 16px 40px rgba(26,22,21,0.10);
+  --shadow-green: 0 12px 28px rgba(30,72,65,0.22);
+
+  /* ---------- CUSTOM BREAKPOINTS (from the prototype's media queries) ---------- */
+  --breakpoint-tab: 721px;
+  --breakpoint-lap: 861px;
+  --breakpoint-desk: 1081px;
+  --breakpoint-wide: 1181px;
 }
 
-body {
-  margin: 0;
+/* ============================================================
+   DARK SHELL — remap neutral tokens; brand green/lime kept.
+   Because utilities reference these vars, the whole app adapts.
+   ============================================================ */
+[data-shell="dark"] {
+  --color-sage-100: #13211D;
+  --color-surface:  #182B26;
+  --color-surface-2:#1E332D;
+  --color-white:    #21342F;
+  --color-mint-200: #26433B;
+  --color-lime-300: #2C4A41;
+  --color-line:     rgba(255,255,255,.09);
+  --color-line-soft:rgba(255,255,255,.09);
+  --color-ink-900:  #F1F6F3;
+  --color-ink-800:  #E1E9E5;
+  --color-ink-500:  #9BB0A9;
+  --color-ink-400:  #88A097;
+  --color-ink-300:  #5C726B;
+  --shadow-xs: 0 1px 2px rgba(0,0,0,.3);
+  --shadow-sm: 0 4px 14px rgba(0,0,0,.3);
+  --shadow-md: 0 10px 28px rgba(0,0,0,.4);
+  --shadow-green: 0 14px 32px rgba(0,0,0,.45);
 }
 
+/* ============================================================
+   DENSITY — drive the two spacing vars the layout reads.
+   Comfortable is the default; compact tightens stack + padding.
+   ============================================================ */
+[data-density="comfortable"] { --stack: 22px; --cardpad: 22px; }
+[data-density="compact"]     { --stack: 16px; --cardpad: 17px; }
+
+/* App-level base + custom scrollbar (carried over from the kit) */
+* { box-sizing: border-box; }
+html, body, #app { min-height: 100%; }
+body { margin: 0; font-family: var(--font-display); -webkit-font-smoothing: antialiased; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #d3ddd2; border-radius: 99px; border: 3px solid transparent; background-clip: content-box; }
+[data-shell="dark"] ::-webkit-scrollbar-thumb { background: #2c4a41; }
