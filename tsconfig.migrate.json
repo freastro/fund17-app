@@ -1,0 +1,17 @@
+{
+  "comment": "Used by ts-node when node-pg-migrate loads the TypeScript migrations. Compiles to CommonJS so the migration runner can require() them, independent of the app's ESM/bundler config.",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2022",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": false,
+    "ignoreDeprecations": "6.0"
+  },
+  "ts-node": {
+    "transpileOnly": true
+  },
+  "include": ["migrations/**/*.ts"]
+}
