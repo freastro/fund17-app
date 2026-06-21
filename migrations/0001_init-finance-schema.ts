@@ -46,6 +46,11 @@ function base(pgm: MigrationBuilder): ColumnDefinitions {
 
 // Per-tenant uniqueness for idempotent re-imports, plus updated_at maintenance.
 function finalize(pgm: MigrationBuilder, table: string): void {
+  // Every RLS policy filters `tenant_id = current_setting('app.tenant_id')`, so
+  // every query carries this predicate. The partial provenance index below can't
+  // serve it (it's partial and leads into source/source_id), so index tenant_id
+  // directly to avoid full-table scans on the shared multi-tenant tables.
+  pgm.createIndex(table, 'tenant_id')
   pgm.createIndex(table, ['tenant_id', 'source', 'source_id'], {
     name: `${table}_provenance_uidx`,
     unique: true,
@@ -206,11 +211,12 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     volume: { type: 'numeric(19,4)' },
   })
   finalize(pgm, 'security_prices')
+  // Unique (security_id, price_date) also serves latest-price lookups: a btree can
+  // be scanned backwards, so a separate DESC index would be redundant.
   pgm.createIndex('security_prices', ['security_id', 'price_date'], {
     name: 'security_prices_security_date_uidx',
     unique: true,
   })
-  pgm.createIndex('security_prices', [{ name: 'security_id' }, { name: 'price_date', sort: 'DESC' }])
 
   // ---- transactions (cashflow + investment) ----
   pgm.createTable('transactions', {
@@ -234,6 +240,11 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     is_investment: { type: 'boolean', notNull: true, default: false },
   })
   finalize(pgm, 'transactions')
+  // Categorization lives in the splits when is_split; the top-level category_id must
+  // be NULL then, or reports double-count (category total + split totals).
+  pgm.addConstraint('transactions', 'transactions_split_category_null_chk', {
+    check: 'NOT is_split OR category_id IS NULL',
+  })
   pgm.createIndex('transactions', [{ name: 'account_id' }, { name: 'date', sort: 'DESC' }])
   pgm.createIndex('transactions', 'category_id')
   pgm.createIndex('transactions', 'merchant_id')
@@ -258,6 +269,10 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     name: 'transaction_splits_txn_seq_uidx',
     unique: true,
   })
+  // Index the SET NULL FKs so deleting a category/merchant (common on re-import)
+  // doesn't seq-scan the splits table, and split-by-category reports stay fast.
+  pgm.createIndex('transaction_splits', 'category_id')
+  pgm.createIndex('transaction_splits', 'merchant_id')
 
   // ---- tag join tables ----
   pgm.createTable('transaction_tags', {
@@ -301,6 +316,9 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     name: 'holdings_account_security_uidx',
     unique: true,
   })
+  // The unique index leads with account_id, so it can't serve a security_id-only
+  // lookup; index it so cascading a security delete doesn't seq-scan holdings.
+  pgm.createIndex('holdings', 'security_id')
 
   // ---- lots (Quicken tax lots) ----
   pgm.createTable('lots', {
@@ -366,19 +384,27 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
       txn_is_split boolean;
       split_total numeric(19,4);
     BEGIN
-      txn_id := COALESCE(NEW.transaction_id, OLD.transaction_id);
-      SELECT amount, is_split INTO txn_amount, txn_is_split FROM transactions WHERE id = txn_id;
-      IF txn_amount IS NULL THEN
-        RETURN NULL; -- parent transaction was deleted in the same statement
-      END IF;
-      IF txn_is_split THEN
-        SELECT COALESCE(SUM(amount), 0) INTO split_total
-          FROM transaction_splits WHERE transaction_id = txn_id;
-        IF split_total <> txn_amount THEN
-          RAISE EXCEPTION 'Split total % does not equal transaction amount % for transaction %',
-            split_total, txn_amount, txn_id;
+      -- A split row can move between parents on UPDATE (transaction_id changes),
+      -- which unbalances the OLD parent too. Validate every affected parent, not
+      -- just NEW, so the source transaction isn't left silently out of balance.
+      FOR txn_id IN
+        SELECT DISTINCT id
+          FROM (VALUES (NEW.transaction_id), (OLD.transaction_id)) AS t(id)
+          WHERE id IS NOT NULL
+      LOOP
+        SELECT amount, is_split INTO txn_amount, txn_is_split FROM transactions WHERE id = txn_id;
+        IF txn_amount IS NULL THEN
+          CONTINUE; -- parent transaction was deleted in the same statement
         END IF;
-      END IF;
+        IF txn_is_split THEN
+          SELECT COALESCE(SUM(amount), 0) INTO split_total
+            FROM transaction_splits WHERE transaction_id = txn_id;
+          IF split_total <> txn_amount THEN
+            RAISE EXCEPTION 'Split total % does not equal transaction amount % for transaction %',
+              split_total, txn_amount, txn_id;
+          END IF;
+        END IF;
+      END LOOP;
       RETURN NULL;
     END;
     $$;
@@ -411,8 +437,14 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
   `)
 
   // ---- Row-Level Security: isolate every tenant by app.tenant_id GUC ----
+  // FORCE is required: a table owner bypasses its own RLS by default, so without
+  // it a single-role deployment (the app connecting as the migration/owner role)
+  // would silently see every tenant's data. FORCE keeps the policy in effect even
+  // for the owner. Note: maintenance/ETL run by the owner must therefore also set
+  // app.tenant_id (or run as a true superuser, which still bypasses).
   for (const table of DOMAIN_TABLES) {
     pgm.sql(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;`)
+    pgm.sql(`ALTER TABLE ${table} FORCE ROW LEVEL SECURITY;`)
     pgm.sql(`
       CREATE POLICY ${table}_tenant_isolation ON ${table}
         USING (tenant_id = current_setting('app.tenant_id', true)::uuid)

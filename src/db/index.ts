@@ -7,6 +7,12 @@ let pool: Pool | undefined
 export function getPool(): Pool {
   if (!pool) {
     pool = new Pool({ connectionString: process.env.DATABASE_URL })
+    // An idle pooled client can error out-of-band (e.g. Aurora/RDS Proxy closing
+    // the connection). Without a listener, node-postgres re-emits it as an
+    // unhandled 'error' event and crashes the whole process.
+    pool.on('error', (error) => {
+      console.error('Unexpected error on idle Postgres client', error)
+    })
   }
   return pool
 }
@@ -28,11 +34,18 @@ export async function withTenant<T>(
     await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId])
     const result = await fn(client)
     await client.query('COMMIT')
+    client.release()
     return result
   } catch (error) {
-    await client.query('ROLLBACK')
+    // Roll back, but never let a rollback failure mask the original error. If the
+    // rollback itself fails the connection is likely broken, so destroy the client
+    // (release(true)) instead of returning a poisoned one to the pool.
+    try {
+      await client.query('ROLLBACK')
+      client.release()
+    } catch {
+      client.release(true)
+    }
     throw error
-  } finally {
-    client.release()
   }
 }
